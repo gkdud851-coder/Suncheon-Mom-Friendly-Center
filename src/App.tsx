@@ -1,4 +1,4 @@
-import { useState, useId, type FormEvent } from 'react';
+import { useState, useId, useRef, useEffect, type FormEvent } from 'react';
 import { 
   Phone, 
   MapPin, 
@@ -29,6 +29,74 @@ export default function App() {
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
   const [isVideoMuted, setIsVideoMuted] = useState(true);
   const [perfImgError, setPerfImgError] = useState(false);
+  const [activeVideo, setActiveVideo] = useState<{
+    title: string;
+    src: string;
+    poster?: string;
+    description?: string;
+  } | null>(null);
+
+  const heroVideoRef = useRef<HTMLVideoElement>(null);
+  const rehabVideoRef = useRef<HTMLVideoElement>(null);
+  const [isRehabMuted, setIsRehabMuted] = useState(true);
+
+  // Ensure hero video autoplays safely on mount
+  useEffect(() => {
+    if (heroVideoRef.current) {
+      heroVideoRef.current.play().catch(() => {
+        // Handled: autoplay requires user interaction if unmuted
+      });
+    }
+  }, []);
+
+  // Ensure rehabilitation video autoplays, loops continuously, and plays when scrolled into view
+  useEffect(() => {
+    const video = rehabVideoRef.current;
+    if (!video) return;
+
+    video.muted = true;
+    video.play().catch(() => {});
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            video.play().catch(() => {});
+          }
+        });
+      },
+      { threshold: 0.15 }
+    );
+
+    observer.observe(video);
+    return () => observer.disconnect();
+  }, []);
+
+  const toggleHeroSound = () => {
+    if (heroVideoRef.current) {
+      const nextMuted = !isVideoMuted;
+      heroVideoRef.current.muted = nextMuted;
+      if (!nextMuted) {
+        heroVideoRef.current.play().catch(() => {});
+      }
+      setIsVideoMuted(nextMuted);
+    } else {
+      setIsVideoMuted(!isVideoMuted);
+    }
+  };
+
+  const toggleRehabSound = () => {
+    if (rehabVideoRef.current) {
+      const nextMuted = !isRehabMuted;
+      rehabVideoRef.current.muted = nextMuted;
+      if (!nextMuted) {
+        rehabVideoRef.current.play().catch(() => {});
+      }
+      setIsRehabMuted(nextMuted);
+    } else {
+      setIsRehabMuted(!isRehabMuted);
+    }
+  };
 
   // Form state
   const [formData, setFormData] = useState({
@@ -116,24 +184,37 @@ export default function App() {
       <section className="relative min-h-[620px] flex items-end overflow-hidden bg-[#1E2A24]">
         {/* Background Cover Video */}
         <video 
+          ref={heroVideoRef}
           autoPlay 
-          muted={isVideoMuted}
+          muted 
           loop 
           playsInline 
-          poster="/행복1.jpg"
-          className="absolute inset-0 w-full h-full object-cover opacity-75"
+          preload="auto"
+          poster="/promo-poster.jpg"
+          className="absolute inset-0 w-full h-full object-cover opacity-80"
         >
-          <source src="/생신잔치 우시는 영상.mp4" type="video/mp4" />
+          <source src="/main-promo.mp4" type="video/mp4" />
           <source src="/메인홍보동영상.mp4" type="video/mp4" />
         </video>
 
         {/* Video Sound Toggle Button */}
         <button
-          onClick={() => setIsVideoMuted(!isVideoMuted)}
-          className="absolute top-4 right-4 z-20 bg-black/50 text-white p-2 rounded-full backdrop-blur-md hover:bg-black/70 transition-colors"
+          type="button"
+          onClick={toggleHeroSound}
+          className="absolute top-4 right-4 z-30 bg-black/60 hover:bg-black/80 text-white px-3 py-1.5 rounded-full backdrop-blur-md transition-all shadow-md flex items-center gap-1.5 text-xs font-semibold cursor-pointer"
           aria-label={isVideoMuted ? "소리 켜기" : "소리 끄기"}
         >
-          {isVideoMuted ? <VolumeX className="w-4 h-4 text-white/80" /> : <Volume2 className="w-4 h-4 text-[var(--accent)]" />}
+          {isVideoMuted ? (
+            <>
+              <VolumeX className="w-3.5 h-3.5 text-white/90" />
+              <span>소리 켜기</span>
+            </>
+          ) : (
+            <>
+              <Volume2 className="w-3.5 h-3.5 text-[var(--accent)] animate-pulse" />
+              <span className="text-[var(--accent)] font-bold">소리 켜짐</span>
+            </>
+          )}
         </button>
 
         {/* High contrast gradient overlay for perfect readability */}
@@ -254,15 +335,15 @@ export default function App() {
               두 번째 기억
             </span>
             <h3 className="serif text-xl font-bold text-[var(--ink)] leading-snug">
-              직원분들이 다가와 쭈뼛쭈뼛 건넨 한마디
+              직원분들이 다가와 조심스레 건넨 한마디
             </h3>
             <p className="text-sm text-[var(--text)] leading-relaxed">
-              어느 날 함께 일하는 직원분들이 조심스레 다가와 쭈뼛거리며 물어보셨습니다. 
-              <strong>"대표님, 우리 친부모님도 여기 모실 수 있을까요?"</strong>
+              어느 날 함께 일하는 직원분들이 조심스레 다가와 쑥스러워하며 물어보셨습니다. 
+              <strong>"대표님, 저희 친부모님도 이곳에 모실 수 있을까요?"</strong>
             </p>
             <p className="text-sm text-[var(--text)] leading-relaxed">
               당연히 국가 장기요양보험 지원제도이고 너무나 감사한 일이었습니다. 
-              무엇보다 센터의 식단, 위생, 어르신 케어 모든 과정을 24시간 가장 가까이서 매일 지켜보는 직원들이 자기 부모님을 맡기려 한다는 사실에, 
+              무엇보다 센터의 식단, 위생, 어르신 케어 모든 과정을 매일 가장 가까이서 지켜보는 직원들이 <strong>소중한 친부모님을 믿고 맡기려 하신다는 사실</strong>에, 
               우리의 진심 어린 돌봄과 솔선수범이 인정받은 것 같아 더없이 벅찼습니다.
             </p>
           </div>
@@ -284,19 +365,49 @@ export default function App() {
           <div className="p-5 rounded-2xl border border-[var(--line)] bg-white flex flex-col gap-3 shadow-xs">
             <div className="relative rounded-xl overflow-hidden bg-black flex items-center justify-center shadow-xs">
               <video 
-                src="/재활변화%20영상.mp4" 
+                ref={rehabVideoRef}
+                autoPlay
+                loop
+                muted
                 controls 
                 playsInline
-                preload="metadata"
+                preload="auto"
+                poster="/rehab-poster.jpg"
                 className="w-full h-auto max-h-[460px] object-contain rounded-xl"
+                onVolumeChange={() => {
+                  if (rehabVideoRef.current) {
+                    setIsRehabMuted(rehabVideoRef.current.muted);
+                  }
+                }}
               >
+                <source src="/rehab-video.mp4" type="video/mp4" />
                 <source src="/재활변화%20영상.mp4" type="video/mp4" />
                 <source src="/재활변화 영상.mp4" type="video/mp4" />
+                어르신의 보행 재활 변화 영상입니다.
               </video>
               <div className="absolute top-2.5 left-2.5 pointer-events-none bg-black/70 backdrop-blur-sm text-white text-[11px] font-medium px-2.5 py-0.5 rounded-full flex items-center gap-1.5 shadow-sm">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                <span>보행 재활 변화 영상</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>보행 재활 변화 (반복 재생)</span>
               </div>
+              <button 
+                type="button"
+                onClick={toggleRehabSound}
+                className="absolute top-2.5 right-2.5 z-10 bg-black/70 hover:bg-black/90 text-white px-2.5 py-1 rounded-full backdrop-blur-sm transition-all focus:outline-none shadow-md flex items-center gap-1.5 text-xs font-medium cursor-pointer"
+                title={isRehabMuted ? "소리 켜기" : "소리 끄기"}
+                aria-label={isRehabMuted ? "소리 켜기" : "소리 끄기"}
+              >
+                {isRehabMuted ? (
+                  <>
+                    <VolumeX className="w-3.5 h-3.5 text-amber-300" />
+                    <span className="text-[11px]">소리 켜기</span>
+                  </>
+                ) : (
+                  <>
+                    <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="text-[11px] text-emerald-300">소리 켜짐</span>
+                  </>
+                )}
+              </button>
             </div>
             <div className="flex items-center gap-2">
               <span className="w-6 h-6 rounded-full bg-[var(--green)] text-white text-xs font-bold flex items-center justify-center">1</span>
@@ -360,13 +471,43 @@ export default function App() {
             </div>
           </div>
 
-          {/* 2. 생신잔치 */}
-          <div className="bg-white rounded-2xl overflow-hidden shadow-xs border border-[var(--line)] flex flex-col">
-            <div className="h-32 sm:h-36 overflow-hidden bg-[var(--sand)]">
-              <img src="/활동4.jpg" alt="생신잔치" className="w-full h-full object-cover" />
+          {/* 2. 생신잔치 (감동 영상 재생) */}
+          <div 
+            onClick={() => setActiveVideo({
+              title: '생신잔치 감동 영상',
+              src: '/birthday-video.mp4',
+              poster: '/birthday-poster.jpg',
+              description: '손자 같은 대표님과 직원들의 정성 어린 축하에 감동의 눈물을 흘리시는 어르신의 진심 어린 순간입니다.'
+            })}
+            className="group bg-white rounded-2xl overflow-hidden shadow-xs border border-[var(--line)] flex flex-col cursor-pointer hover:border-[var(--green)] hover:shadow-md transition-all"
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setActiveVideo({
+                  title: '생신잔치 감동 영상',
+                  src: '/birthday-video.mp4',
+                  poster: '/birthday-poster.jpg',
+                  description: '손자 같은 대표님과 직원들의 정성 어린 축하에 감동의 눈물을 흘리시는 어르신의 진심 어린 순간입니다.'
+                });
+              }
+            }}
+          >
+            <div className="relative h-32 sm:h-36 overflow-hidden bg-[var(--sand)]">
+              <img src="/birthday-poster.jpg" alt="생신잔치 감동 영상" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+              <div className="absolute inset-0 bg-black/25 flex items-center justify-center group-hover:bg-black/35 transition-colors">
+                <div className="w-10 h-10 rounded-full bg-white/95 text-[var(--green)] flex items-center justify-center shadow-md group-hover:scale-110 transition-transform">
+                  <Play className="w-5 h-5 ml-0.5 fill-current" />
+                </div>
+              </div>
+              <div className="absolute top-2 right-2 bg-rose-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1">
+                <span>영상 보기</span>
+              </div>
             </div>
-            <div className="p-3 text-center">
+            <div className="p-3 text-center flex items-center justify-center gap-1">
               <h4 className="font-bold text-sm text-[var(--ink)]">생신잔치</h4>
+              <span className="text-[11px] text-[var(--green)] font-bold">▶</span>
             </div>
           </div>
 
@@ -523,9 +664,9 @@ export default function App() {
       <section id="trust" className="sec bg-[var(--beige)]">
         <div className="flex flex-col gap-1.5">
           <span className="eyebrow">믿을 수 있는 이유</span>
-          <h2 className="h2 serif">직원들이 자기 부모님을<br />모시는 곳입니다</h2>
+          <h2 className="h2 serif">직원들이 부모님을<br />모시는 곳입니다</h2>
           <p className="text-sm text-[var(--muted)]">
-            센터를 가장 잘 아는 사람이 자기 부모님을 맡깁니다.<br />
+            센터를 가장 잘 아는 사람이 부모님을 맡깁니다.<br />
             그보다 확실한 이유는 없다고 생각합니다.
           </p>
         </div>
@@ -903,6 +1044,54 @@ export default function App() {
                   </button>
                 </div>
               </form>
+            )}
+          </div>
+        </div>
+      )}
+      {/* ---------------------------------------------------- */}
+      {/* 비디오 모달 (Video Modal) */}
+      {/* ---------------------------------------------------- */}
+      {activeVideo && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          onClick={() => setActiveVideo(null)}
+        >
+          <div 
+            className="bg-stone-900 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl border border-white/10 flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-3.5 bg-black/60 text-white flex items-center justify-between border-b border-white/10">
+              <div className="flex items-center gap-2">
+                <Play className="w-4 h-4 text-[var(--accent)] fill-current" />
+                <h3 className="font-bold text-sm text-white">{activeVideo.title}</h3>
+              </div>
+              <button 
+                onClick={() => setActiveVideo(null)}
+                className="p-1 rounded-full hover:bg-white/20 transition-colors cursor-pointer text-white"
+                aria-label="닫기"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="relative bg-black flex items-center justify-center min-h-[300px] max-h-[70vh]">
+              <video 
+                src={activeVideo.src} 
+                controls 
+                autoPlay 
+                playsInline
+                poster={activeVideo.poster}
+                className="w-full max-h-[65vh] object-contain"
+              >
+                <source src={activeVideo.src} type="video/mp4" />
+                영상을 재생할 수 없습니다.
+              </video>
+            </div>
+
+            {activeVideo.description && (
+              <div className="p-4 bg-stone-900 text-stone-200 text-xs leading-relaxed border-t border-white/10">
+                {activeVideo.description}
+              </div>
             )}
           </div>
         </div>
