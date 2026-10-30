@@ -32,6 +32,7 @@ export default function App() {
   const [activeVideo, setActiveVideo] = useState<{
     title: string;
     src: string;
+    altSrc?: string;
     poster?: string;
     description?: string;
   } | null>(null);
@@ -40,13 +41,29 @@ export default function App() {
   const rehabVideoRef = useRef<HTMLVideoElement>(null);
   const [isRehabMuted, setIsRehabMuted] = useState(true);
 
-  // Ensure hero video autoplays safely on mount
+  // Ensure hero video autoplays safely on mount across all mobile & desktop browsers
   useEffect(() => {
-    if (heroVideoRef.current) {
-      heroVideoRef.current.play().catch(() => {
-        // Handled: autoplay requires user interaction if unmuted
-      });
-    }
+    const video = heroVideoRef.current;
+    if (!video) return;
+
+    video.muted = true;
+    video.defaultMuted = true;
+    video.playsInline = true;
+    video.setAttribute('playsinline', '');
+    video.setAttribute('webkit-playsinline', '');
+
+    const tryPlay = () => {
+      video.play().catch(() => {});
+    };
+
+    tryPlay();
+    video.addEventListener('canplay', tryPlay);
+    video.addEventListener('loadedmetadata', tryPlay);
+
+    return () => {
+      video.removeEventListener('canplay', tryPlay);
+      video.removeEventListener('loadedmetadata', tryPlay);
+    };
   }, []);
 
   // Ensure rehabilitation video autoplays, loops continuously, and plays when scrolled into view
@@ -55,13 +72,25 @@ export default function App() {
     if (!video) return;
 
     video.muted = true;
-    video.play().catch(() => {});
+    video.defaultMuted = true;
+    video.playsInline = true;
+    video.loop = true;
+    video.setAttribute('playsinline', '');
+    video.setAttribute('webkit-playsinline', '');
+
+    const tryPlay = () => {
+      video.play().catch(() => {});
+    };
+
+    tryPlay();
+    video.addEventListener('canplay', tryPlay);
+    video.addEventListener('loadedmetadata', tryPlay);
 
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
-            video.play().catch(() => {});
+            tryPlay();
           }
         });
       },
@@ -69,7 +98,11 @@ export default function App() {
     );
 
     observer.observe(video);
-    return () => observer.disconnect();
+    return () => {
+      video.removeEventListener('canplay', tryPlay);
+      video.removeEventListener('loadedmetadata', tryPlay);
+      observer.disconnect();
+    };
   }, []);
 
   const toggleHeroSound = () => {
@@ -192,6 +225,10 @@ export default function App() {
           preload="auto"
           poster="/promo-poster.jpg"
           className="absolute inset-0 w-full h-full object-cover opacity-80"
+          onEnded={(e) => {
+            e.currentTarget.currentTime = 0;
+            e.currentTarget.play().catch(() => {});
+          }}
         >
           <source src="/main-promo.mp4" type="video/mp4" />
           <source src="/메인홍보동영상.mp4" type="video/mp4" />
@@ -374,6 +411,10 @@ export default function App() {
                 preload="auto"
                 poster="/rehab-poster.jpg"
                 className="w-full h-auto max-h-[460px] object-contain rounded-xl"
+                onEnded={(e) => {
+                  e.currentTarget.currentTime = 0;
+                  e.currentTarget.play().catch(() => {});
+                }}
                 onVolumeChange={() => {
                   if (rehabVideoRef.current) {
                     setIsRehabMuted(rehabVideoRef.current.muted);
@@ -476,6 +517,7 @@ export default function App() {
             onClick={() => setActiveVideo({
               title: '생신잔치 감동 영상',
               src: '/birthday-video.mp4',
+              altSrc: '/생신잔치 우시는 영상.mp4',
               poster: '/birthday-poster.jpg',
               description: '손자 같은 대표님과 직원들의 정성 어린 축하에 감동의 눈물을 흘리시는 어르신의 진심 어린 순간입니다.'
             })}
@@ -488,6 +530,7 @@ export default function App() {
                 setActiveVideo({
                   title: '생신잔치 감동 영상',
                   src: '/birthday-video.mp4',
+                  altSrc: '/생신잔치 우시는 영상.mp4',
                   poster: '/birthday-poster.jpg',
                   description: '손자 같은 대표님과 직원들의 정성 어린 축하에 감동의 눈물을 흘리시는 어르신의 진심 어린 순간입니다.'
                 });
@@ -1076,14 +1119,26 @@ export default function App() {
 
             <div className="relative bg-black flex items-center justify-center min-h-[300px] max-h-[70vh]">
               <video 
-                src={activeVideo.src} 
+                key={activeVideo.src}
                 controls 
                 autoPlay 
                 playsInline
+                preload="auto"
                 poster={activeVideo.poster}
                 className="w-full max-h-[65vh] object-contain"
+                ref={(el) => {
+                  if (el) {
+                    el.playsInline = true;
+                    el.setAttribute('playsinline', '');
+                    el.setAttribute('webkit-playsinline', '');
+                    el.play().catch(() => {});
+                  }
+                }}
               >
                 <source src={activeVideo.src} type="video/mp4" />
+                {activeVideo.altSrc && (
+                  <source src={activeVideo.altSrc} type="video/mp4" />
+                )}
                 영상을 재생할 수 없습니다.
               </video>
             </div>
