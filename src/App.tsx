@@ -39,7 +39,9 @@ export default function App() {
 
   const heroVideoRef = useRef<HTMLVideoElement>(null);
   const rehabVideoRef = useRef<HTMLVideoElement>(null);
+  const modalVideoRef = useRef<HTMLVideoElement>(null);
   const [isRehabMuted, setIsRehabMuted] = useState(true);
+  const [isHeroAutoplayBlocked, setIsHeroAutoplayBlocked] = useState(false);
 
   // Ensure hero video autoplays safely on mount across all mobile & desktop browsers
   useEffect(() => {
@@ -49,20 +51,42 @@ export default function App() {
     video.muted = true;
     video.defaultMuted = true;
     video.playsInline = true;
+    video.loop = true;
+    video.setAttribute('muted', '');
     video.setAttribute('playsinline', '');
     video.setAttribute('webkit-playsinline', '');
 
     const tryPlay = () => {
-      video.play().catch(() => {});
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            setIsHeroAutoplayBlocked(false);
+          })
+          .catch(() => {
+            setIsHeroAutoplayBlocked(true);
+          });
+      }
     };
 
     tryPlay();
     video.addEventListener('canplay', tryPlay);
-    video.addEventListener('loadedmetadata', tryPlay);
+    video.addEventListener('loadeddata', tryPlay);
+
+    // Unlock autoplay on first user gesture (handles iOS Low Power Mode / strict browsers)
+    const unlockOnGesture = () => {
+      if (video.paused) {
+        tryPlay();
+      }
+    };
+    window.addEventListener('pointerdown', unlockOnGesture, { passive: true });
+    window.addEventListener('touchstart', unlockOnGesture, { passive: true });
 
     return () => {
       video.removeEventListener('canplay', tryPlay);
-      video.removeEventListener('loadedmetadata', tryPlay);
+      video.removeEventListener('loadeddata', tryPlay);
+      window.removeEventListener('pointerdown', unlockOnGesture);
+      window.removeEventListener('touchstart', unlockOnGesture);
     };
   }, []);
 
@@ -75,6 +99,7 @@ export default function App() {
     video.defaultMuted = true;
     video.playsInline = true;
     video.loop = true;
+    video.setAttribute('muted', '');
     video.setAttribute('playsinline', '');
     video.setAttribute('webkit-playsinline', '');
 
@@ -84,7 +109,7 @@ export default function App() {
 
     tryPlay();
     video.addEventListener('canplay', tryPlay);
-    video.addEventListener('loadedmetadata', tryPlay);
+    video.addEventListener('loadeddata', tryPlay);
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -94,16 +119,46 @@ export default function App() {
           }
         });
       },
-      { threshold: 0.15 }
+      { threshold: 0.1 }
     );
+
+    const unlockOnGesture = () => {
+      if (video.paused) {
+        tryPlay();
+      }
+    };
+    window.addEventListener('pointerdown', unlockOnGesture, { passive: true });
+    window.addEventListener('touchstart', unlockOnGesture, { passive: true });
 
     observer.observe(video);
     return () => {
       video.removeEventListener('canplay', tryPlay);
-      video.removeEventListener('loadedmetadata', tryPlay);
+      video.removeEventListener('loadeddata', tryPlay);
+      window.removeEventListener('pointerdown', unlockOnGesture);
+      window.removeEventListener('touchstart', unlockOnGesture);
       observer.disconnect();
     };
   }, []);
+
+  // Auto-play modal video reliably when opened
+  useEffect(() => {
+    const video = modalVideoRef.current;
+    if (!activeVideo || !video) return;
+
+    video.playsInline = true;
+    video.setAttribute('playsinline', '');
+    video.setAttribute('webkit-playsinline', '');
+    video.load();
+
+    const playPromise = video.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(() => {
+        // If unmuted autoplay is blocked, start muted so video never stays frozen
+        video.muted = true;
+        video.play().catch(() => {});
+      });
+    }
+  }, [activeVideo]);
 
   const toggleHeroSound = () => {
     if (heroVideoRef.current) {
@@ -218,6 +273,7 @@ export default function App() {
         {/* Background Cover Video */}
         <video 
           ref={heroVideoRef}
+          src="/main-promo.mp4"
           autoPlay 
           muted 
           loop 
@@ -225,14 +281,30 @@ export default function App() {
           preload="auto"
           poster="/promo-poster.jpg"
           className="absolute inset-0 w-full h-full object-cover opacity-80"
+          onPlaying={() => setIsHeroAutoplayBlocked(false)}
           onEnded={(e) => {
             e.currentTarget.currentTime = 0;
             e.currentTarget.play().catch(() => {});
           }}
-        >
-          <source src="/main-promo.mp4" type="video/mp4" />
-          <source src="/메인홍보동영상.mp4" type="video/mp4" />
-        </video>
+        />
+
+        {/* Fallback Play Button only shown if browser blocks autoplay (e.g. Low Power Mode) */}
+        {isHeroAutoplayBlocked && (
+          <button
+            type="button"
+            onClick={() => {
+              if (heroVideoRef.current) {
+                heroVideoRef.current.muted = isVideoMuted;
+                heroVideoRef.current.play().then(() => setIsHeroAutoplayBlocked(false)).catch(() => {});
+              }
+            }}
+            className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 bg-black/65 hover:bg-black/80 text-white px-4 py-2.5 rounded-full backdrop-blur-md shadow-lg flex items-center gap-2 text-xs font-bold cursor-pointer"
+            aria-label="영상 재생"
+          >
+            <Play className="w-4 h-4 fill-current text-[var(--accent)]" />
+            <span>영상 재생하기</span>
+          </button>
+        )}
 
         {/* Video Sound Toggle Button */}
         <button
@@ -255,7 +327,7 @@ export default function App() {
         </button>
 
         {/* High contrast gradient overlay for perfect readability */}
-        <div className="absolute inset-0 bg-gradient-to-t from-[rgba(16,36,27,0.92)] via-[rgba(16,36,27,0.55)] to-[rgba(16,36,27,0.3)] z-10" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[rgba(16,36,27,0.92)] via-[rgba(16,36,27,0.55)] to-[rgba(16,36,27,0.3)] z-10" />
 
         {/* Hero Content */}
         <div className="relative z-20 w-full px-6 pt-16 pb-12 flex flex-col gap-4 text-white">
@@ -403,6 +475,7 @@ export default function App() {
             <div className="relative rounded-xl overflow-hidden bg-black flex items-center justify-center shadow-xs">
               <video 
                 ref={rehabVideoRef}
+                src="/rehab-video.mp4"
                 autoPlay
                 loop
                 muted
@@ -421,9 +494,6 @@ export default function App() {
                   }
                 }}
               >
-                <source src="/rehab-video.mp4" type="video/mp4" />
-                <source src="/재활변화%20영상.mp4" type="video/mp4" />
-                <source src="/재활변화 영상.mp4" type="video/mp4" />
                 어르신의 보행 재활 변화 영상입니다.
               </video>
               <div className="absolute top-2.5 left-2.5 pointer-events-none bg-black/70 backdrop-blur-sm text-white text-[11px] font-medium px-2.5 py-0.5 rounded-full flex items-center gap-1.5 shadow-sm">
@@ -1119,26 +1189,16 @@ export default function App() {
 
             <div className="relative bg-black flex items-center justify-center min-h-[300px] max-h-[70vh]">
               <video 
+                ref={modalVideoRef}
                 key={activeVideo.src}
+                src={activeVideo.src}
                 controls 
                 autoPlay 
                 playsInline
                 preload="auto"
                 poster={activeVideo.poster}
                 className="w-full max-h-[65vh] object-contain"
-                ref={(el) => {
-                  if (el) {
-                    el.playsInline = true;
-                    el.setAttribute('playsinline', '');
-                    el.setAttribute('webkit-playsinline', '');
-                    el.play().catch(() => {});
-                  }
-                }}
               >
-                <source src={activeVideo.src} type="video/mp4" />
-                {activeVideo.altSrc && (
-                  <source src={activeVideo.altSrc} type="video/mp4" />
-                )}
                 영상을 재생할 수 없습니다.
               </video>
             </div>
